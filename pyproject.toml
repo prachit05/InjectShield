@@ -1,0 +1,21 @@
+# Repo-level tooling config. Services are packaged by their own Dockerfiles.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["shared", "api", "worker"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S101"]  # assert is fine in tests
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106"]  # fake credentials and token claims
+
+[tool.ruff.lint.isort]
+known-first-party = ["injectshield_shared", "injectshield_api", "injectshield_worker"]

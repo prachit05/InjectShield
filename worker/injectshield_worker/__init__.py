@@ -1,0 +1,1 @@
+"""InjectShield scanner worker."""

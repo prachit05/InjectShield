@@ -1,0 +1,7 @@
+-e ./shared
+-r api/requirements.txt
+-r worker/requirements.txt
+pytest>=8.2
+moto[s3,sqs]>=5.0
+httpx>=0.27
+ruff>=0.6

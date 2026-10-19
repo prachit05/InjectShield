@@ -1,0 +1,59 @@
+# Local stack: api + worker against Postgres and LocalStack (S3 + SQS). No AWS account needed.
+#   docker compose up --build
+#   docker compose up --build --scale worker=3     # several workers on one queue
+
+x-app-env: &app-env
+  AWS_REGION: ap-south-1
+  AWS_ENDPOINT_URL: http://localstack:4566
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  BUCKET: injectshield-prompts
+  QUEUE_URL: http://localstack:4566/000000000000/injectshield-scan
+  DATABASE_URL: postgresql://injectshield:injectshield@postgres:5432/injectshield
+  AUTH_DISABLED: "true"
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: injectshield
+      POSTGRES_PASSWORD: injectshield
+      POSTGRES_DB: injectshield
+    ports: ["5432:5432"]
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U injectshield"]
+      interval: 2s
+      retries: 30
+
+  localstack:
+    # Pinned: newer LocalStack images need an account token.
+    image: localstack/localstack:3.8
+    environment:
+      SERVICES: s3,sqs
+      AWS_DEFAULT_REGION: ap-south-1
+    ports: ["4566:4566"]
+    volumes:
+      - ./scripts/localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "awslocal sqs get-queue-url --queue-name injectshield-scan >/dev/null"]
+      interval: 3s
+      retries: 40
+
+  api:
+    build: { context: ., dockerfile: api/Dockerfile }
+    environment: *app-env
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      localstack: { condition: service_healthy }
+
+  worker:
+    build: { context: ., dockerfile: worker/Dockerfile }
+    environment:
+      <<: *app-env
+      WORKER_RETRY_DELAY_SECONDS: "5"
+    depends_on:
+      postgres: { condition: service_healthy }
+      localstack: { condition: service_healthy }

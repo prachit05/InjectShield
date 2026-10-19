@@ -1,0 +1,4 @@
+# Optional: only installed when the worker image is built with INSTALL_CLASSIFIER=true.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.3
+transformers>=4.44
