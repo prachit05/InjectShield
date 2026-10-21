@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  InjectShield IAM: one least-privilege role per service (requirement N3). Each
+  policy names the exact bucket, queue and secret exported by the earlier stacks,
+  so this stack deploys after storage, queue and database.
+  Skip this stack in an AWS Academy Learner Lab (IAM is read-only there) and pass
+  LabRole to compute.yaml instead; see docs/deployment.md.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: injectshield
+    AllowedPattern: "^[a-z][a-z0-9-]{2,20}$"
+
+Resources:
+  # Used by ECS itself (not the app): pull images, write logs, read the DB secret.
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-task-execution"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+      Policies:
+        - PolicyName: read-db-secret
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !ImportValue { "Fn::Sub": "${ProjectName}-DbSecretArn" }
+
+  # The API only writes prompts and sends jobs.
+  ApiTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-api-task"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              ArnLike: { "aws:SourceArn": !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*" }
+      Policies:
+        - PolicyName: put-prompts-send-jobs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub
+                  - "${BucketArn}/prompts/*"
+                  - BucketArn: !ImportValue { "Fn::Sub": "${ProjectName}-PromptsBucketArn" }
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !ImportValue { "Fn::Sub": "${ProjectName}-ScanQueueArn" }
+
+  # Workers only read prompts and consume jobs.
+  WorkerTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-worker-task"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              ArnLike: { "aws:SourceArn": !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*" }
+      Policies:
+        - PolicyName: get-prompts-consume-jobs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub
+                  - "${BucketArn}/prompts/*"
+                  - BucketArn: !ImportValue { "Fn::Sub": "${ProjectName}-PromptsBucketArn" }
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:ChangeMessageVisibility
+                  - sqs:GetQueueAttributes
+                Resource: !ImportValue { "Fn::Sub": "${ProjectName}-ScanQueueArn" }
+
+Outputs:
+  TaskExecutionRoleArn:
+    Value: !GetAtt TaskExecutionRole.Arn
+    Export: { Name: !Sub "${ProjectName}-TaskExecutionRoleArn" }
+  ApiTaskRoleArn:
+    Value: !GetAtt ApiTaskRole.Arn
+    Export: { Name: !Sub "${ProjectName}-ApiTaskRoleArn" }
+  WorkerTaskRoleArn:
+    Value: !GetAtt WorkerTaskRole.Arn
+    Export: { Name: !Sub "${ProjectName}-WorkerTaskRoleArn" }

@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  InjectShield storage: private, encrypted prompts bucket (prompts expire after
+  7 days) and a private frontend bucket served later through CloudFront.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: injectshield
+    AllowedPattern: "^[a-z][a-z0-9-]{2,20}$"
+  PromptRetentionDays:
+    Type: Number
+    Default: 7
+    MinValue: 1
+
+Resources:
+  PromptsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Sub "${ProjectName}-prompts-${AWS::AccountId}-${AWS::Region}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-prompts
+            Status: Enabled
+            Prefix: prompts/
+            ExpirationInDays: !Ref PromptRetentionDays
+          - Id: abort-incomplete-uploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload: { DaysAfterInitiation: 1 }
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+
+  PromptsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref PromptsBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt PromptsBucket.Arn
+              - !Sub "${PromptsBucket.Arn}/*"
+            Condition:
+              Bool: { "aws:SecureTransport": "false" }
+
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Sub "${ProjectName}-frontend-${AWS::AccountId}-${AWS::Region}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt FrontendBucket.Arn
+              - !Sub "${FrontendBucket.Arn}/*"
+            Condition:
+              Bool: { "aws:SecureTransport": "false" }
+
+Outputs:
+  PromptsBucketName:
+    Value: !Ref PromptsBucket
+    Export: { Name: !Sub "${ProjectName}-PromptsBucketName" }
+  PromptsBucketArn:
+    Value: !GetAtt PromptsBucket.Arn
+    Export: { Name: !Sub "${ProjectName}-PromptsBucketArn" }
+  FrontendBucketName:
+    Value: !Ref FrontendBucket
+    Export: { Name: !Sub "${ProjectName}-FrontendBucketName" }
+  FrontendBucketArn:
+    Value: !GetAtt FrontendBucket.Arn
+    Export: { Name: !Sub "${ProjectName}-FrontendBucketArn" }
+  FrontendBucketRegionalDomainName:
+    Value: !GetAtt FrontendBucket.RegionalDomainName
+    Export: { Name: !Sub "${ProjectName}-FrontendBucketRegionalDomainName" }

@@ -1,0 +1,166 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  InjectShield network: VPC with two public subnets in two AZs, no NAT gateway.
+  Tasks get public IPs to reach ECR/SQS; nothing accepts inbound traffic except
+  the ALB, and each tier only accepts traffic from the tier in front of it.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: injectshield
+    AllowedPattern: "^[a-z][a-z0-9-]{2,20}$"
+  VpcCidr:
+    Type: String
+    Default: 10.20.0.0/16
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - { Key: Name, Value: !Ref ProjectName }
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - { Key: Name, Value: !Ref ProjectName }
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Select [0, !Cidr [!Ref VpcCidr, 4, 8]]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - { Key: Name, Value: !Sub "${ProjectName}-public-1" }
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Select [1, !Cidr [!Ref VpcCidr, 4, 8]]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - { Key: Name, Value: !Sub "${ProjectName}-public-2" }
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - { Key: Name, Value: !Sub "${ProjectName}-public" }
+
+  DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1Routes:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2Routes:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # Free gateway endpoint: S3 traffic from the tasks stays on the AWS network.
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref Vpc
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+      VpcEndpointType: Gateway
+      RouteTableIds: [!Ref PublicRouteTable]
+
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: InjectShield ALB - HTTP from the internet
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0, Description: HTTP }
+      Tags:
+        - { Key: Name, Value: !Sub "${ProjectName}-alb" }
+
+  ApiSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: InjectShield API tasks - port 8000 from the ALB only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+          Description: API from ALB
+      Tags:
+        - { Key: Name, Value: !Sub "${ProjectName}-api" }
+
+  WorkerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: InjectShield worker tasks - no inbound traffic at all
+      VpcId: !Ref Vpc
+      Tags:
+        - { Key: Name, Value: !Sub "${ProjectName}-worker" }
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: InjectShield RDS - Postgres from API and worker tasks only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref ApiSecurityGroup
+          Description: Postgres from API
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref WorkerSecurityGroup
+          Description: Postgres from workers
+      Tags:
+        - { Key: Name, Value: !Sub "${ProjectName}-db" }
+
+Outputs:
+  VpcId:
+    Value: !Ref Vpc
+    Export: { Name: !Sub "${ProjectName}-VpcId" }
+  PublicSubnet1:
+    Value: !Ref PublicSubnet1
+    Export: { Name: !Sub "${ProjectName}-PublicSubnet1" }
+  PublicSubnet2:
+    Value: !Ref PublicSubnet2
+    Export: { Name: !Sub "${ProjectName}-PublicSubnet2" }
+  AlbSecurityGroup:
+    Value: !Ref AlbSecurityGroup
+    Export: { Name: !Sub "${ProjectName}-AlbSecurityGroup" }
+  ApiSecurityGroup:
+    Value: !Ref ApiSecurityGroup
+    Export: { Name: !Sub "${ProjectName}-ApiSecurityGroup" }
+  WorkerSecurityGroup:
+    Value: !Ref WorkerSecurityGroup
+    Export: { Name: !Sub "${ProjectName}-WorkerSecurityGroup" }
+  DatabaseSecurityGroup:
+    Value: !Ref DatabaseSecurityGroup
+    Export: { Name: !Sub "${ProjectName}-DatabaseSecurityGroup" }

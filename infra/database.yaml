@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  InjectShield database: RDS Postgres 16, encrypted, private to the VPC, reachable
+  only from the API and worker security groups. The master password is generated
+  into Secrets Manager and never appears in a template or task definition.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: injectshield
+    AllowedPattern: "^[a-z][a-z0-9-]{2,20}$"
+  DbInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+    AllowedValues: [db.t4g.micro, db.t3.micro, db.t4g.small, db.t3.small]
+    Description: db.t4g.micro is the doc's choice; use db.t3.micro if the account rejects Graviton.
+  DbEngineVersion:
+    Type: String
+    Default: "16.15"
+    AllowedPattern: "^16\\.\\d+$"
+    Description: >-
+      Postgres 16 minor version (matches postgres:16 used locally). RDS retires old
+      minors; list current ones with
+      aws rds describe-db-engine-versions --engine postgres --query "DBEngineVersions[].EngineVersion"
+  DbAllocatedStorage:
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 100
+  BackupRetentionDays:
+    Type: Number
+    Default: 1
+    MinValue: 0
+    MaxValue: 7
+
+Resources:
+  DbSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete # teardown.sh must leave nothing behind
+    UpdateReplacePolicy: Delete
+    # No fixed Name: a deleted secret keeps its name reserved for days, which
+    # would block redeploying after teardown.
+    Properties:
+      Description: !Sub "${ProjectName} RDS master credentials"
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "injectshield"}'
+        GenerateStringKey: password
+        PasswordLength: 32
+        ExcludeCharacters: "\"@/\\ '`$&%#:?"
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub "${ProjectName} database subnets (two AZs)"
+      SubnetIds:
+        - !ImportValue { "Fn::Sub": "${ProjectName}-PublicSubnet1" }
+        - !ImportValue { "Fn::Sub": "${ProjectName}-PublicSubnet2" }
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      DBInstanceIdentifier: !Sub "${ProjectName}-db"
+      Engine: postgres
+      EngineVersion: !Ref DbEngineVersion
+      DBInstanceClass: !Ref DbInstanceClass
+      AllocatedStorage: !Ref DbAllocatedStorage
+      StorageType: gp3
+      StorageEncrypted: true
+      DBName: injectshield
+      MasterUsername: !Sub "{{resolve:secretsmanager:${DbSecret}:SecretString:username}}"
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DbSecret}:SecretString:password}}"
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VPCSecurityGroups:
+        - !ImportValue { "Fn::Sub": "${ProjectName}-DatabaseSecurityGroup" }
+      PubliclyAccessible: false
+      MultiAZ: false
+      BackupRetentionPeriod: !Ref BackupRetentionDays
+      DeleteAutomatedBackups: true
+      DeletionProtection: false
+      AutoMinorVersionUpgrade: true
+      EnablePerformanceInsights: false
+      CopyTagsToSnapshot: true
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+
+  # Adds host, port and dbname to the secret, so it fully describes the connection.
+  DbSecretAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref DbSecret
+      TargetId: !Ref Database
+      TargetType: AWS::RDS::DBInstance
+
+Outputs:
+  DbEndpoint:
+    Value: !GetAtt Database.Endpoint.Address
+    Export: { Name: !Sub "${ProjectName}-DbEndpoint" }
+  DbPort:
+    Value: !GetAtt Database.Endpoint.Port
+    Export: { Name: !Sub "${ProjectName}-DbPort" }
+  DbName:
+    Value: injectshield
+    Export: { Name: !Sub "${ProjectName}-DbName" }
+  DbSecretArn:
+    Value: !Ref DbSecret
+    Export: { Name: !Sub "${ProjectName}-DbSecretArn" }

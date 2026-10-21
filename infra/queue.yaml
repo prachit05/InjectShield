@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  InjectShield queues: the scan queue and its dead-letter queue. A message that
+  is received 3 times without being deleted moves to the DLQ (requirement N2).
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: injectshield
+    AllowedPattern: "^[a-z][a-z0-9-]{2,20}$"
+  MaxReceiveCount:
+    Type: Number
+    Default: 3
+    MinValue: 1
+    Description: Must match WORKER_MAX_RECEIVES in the worker task.
+  VisibilityTimeoutSeconds:
+    Type: Number
+    Default: 60
+    MinValue: 10
+    Description: Longer than the slowest scan, so a message is not redelivered mid-scan.
+
+Resources:
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Delete # teardown.sh must leave nothing behind
+    UpdateReplacePolicy: Delete
+    Properties:
+      QueueName: !Sub "${ProjectName}-scan-dlq"
+      MessageRetentionPeriod: 1209600 # 14 days, the maximum: time to inspect failures
+      SqsManagedSseEnabled: true
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+
+  ScanQueue:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Delete # teardown.sh must leave nothing behind
+    UpdateReplacePolicy: Delete
+    Properties:
+      QueueName: !Sub "${ProjectName}-scan"
+      VisibilityTimeout: !Ref VisibilityTimeoutSeconds
+      ReceiveMessageWaitTimeSeconds: 20 # long polling: fewer empty receives, lower cost
+      MessageRetentionPeriod: 345600 # 4 days
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
+        maxReceiveCount: !Ref MaxReceiveCount
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+
+Outputs:
+  ScanQueueUrl:
+    Value: !Ref ScanQueue
+    Export: { Name: !Sub "${ProjectName}-ScanQueueUrl" }
+  ScanQueueArn:
+    Value: !GetAtt ScanQueue.Arn
+    Export: { Name: !Sub "${ProjectName}-ScanQueueArn" }
+  ScanQueueName:
+    Value: !GetAtt ScanQueue.QueueName
+    Export: { Name: !Sub "${ProjectName}-ScanQueueName" }
+  DeadLetterQueueUrl:
+    Value: !Ref DeadLetterQueue
+    Export: { Name: !Sub "${ProjectName}-DeadLetterQueueUrl" }
+  DeadLetterQueueArn:
+    Value: !GetAtt DeadLetterQueue.Arn
+    Export: { Name: !Sub "${ProjectName}-DeadLetterQueueArn" }
+  DeadLetterQueueName:
+    Value: !GetAtt DeadLetterQueue.QueueName
+    Export: { Name: !Sub "${ProjectName}-DeadLetterQueueName" }

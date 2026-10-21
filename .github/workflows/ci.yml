@@ -40,6 +40,18 @@ jobs:
         env:
           PYTHONPATH: shared:worker
 
+  infra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install cfn-lint
+      - run: cfn-lint --regions us-east-1 us-west-2 ap-south-1 --include-checks I -- infra/*.yaml
+      - name: Shell scripts parse
+        run: for f in scripts/*.sh scripts/localstack/*.sh; do bash -n "$f"; done
+
   docker:
     runs-on: ubuntu-latest
     steps:
