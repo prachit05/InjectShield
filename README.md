@@ -39,7 +39,7 @@ flowchart LR
 | `infra/` | CloudFormation, one stack per file (deploy order below) |
 | `scripts/` | `deploy.sh`, `teardown.sh`, `create-budget.sh`, `smoke.sh`, `load-test.py`, `create-user.sh`, `token.sh` |
 | `tests/` | detector, scoring, API (moto), worker (moto + DLQ), real-Postgres and infra-consistency tests, sample prompts |
-| `docs/` | [deployment guide](docs/deployment.md), [AWS services used](docs/services-used.md), [design doc](docs/design.md) |
+| `docs/` | [handoff and status](docs/handoff.md), [deployment guide](docs/deployment.md), [AWS services used](docs/services-used.md), [design doc](docs/design.md), [graphs from the AWS run](docs/screenshots/) |
 
 The services are packaged as `injectshield_api` and `injectshield_worker`, not `app`,
 so both test suites can be imported in one pytest run.

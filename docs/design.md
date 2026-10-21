@@ -115,9 +115,9 @@ InjectShield/
 | 1 | Detector core, sample prompts, tests | Done |
 | 2 | Full flow locally (docker compose with Postgres and LocalStack), CI | Done |
 | 3 | Network, storage, queue, database, IAM stacks; deploy and teardown scripts | Done |
-| 4 | ECR, ECS cluster, ALB, API and worker services; image build and push in `deploy.sh` | Built; verify on first real deploy |
-| 5 | Cognito, worker autoscaling, load test | Built; verify on first real deploy |
-| 6 | Dashboard and alarms, web app on S3 + CloudFront, report docs | Built; screenshots come from the first real deploy |
+| 4 | ECR, ECS cluster, ALB, API and worker services; image build and push in `deploy.sh` | Done; deployed to ap-southeast-2 |
+| 5 | Cognito, worker autoscaling, load test | Done; scaled 1 → 5 → 1 under a 20,000-job test |
+| 6 | Dashboard and alarms, web app on S3 + CloudFront, report docs | Done; graphs in `docs/screenshots/`, console screenshots pending |
 
 If time runs short, cut the classifier first, then the frontend (demo with `curl` or
 Swagger at `/docs`).
