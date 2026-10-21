@@ -1,4 +1,4 @@
-.PHONY: install dev down test lint format eval smoke deploy teardown
+.PHONY: install dev down test lint format eval smoke budget deploy teardown lint-infra
 
 PY ?= .venv/bin/python
 
@@ -29,8 +29,14 @@ eval:               ## precision / recall on tests/sample_prompts
 smoke:              ## one prompt end to end (BASE_URL / TOKEN to target AWS)
 	bash scripts/smoke.sh
 
-deploy:             ## Phase 3-4
+budget:             ## once, own account only: make budget EMAIL=you@example.com
+	bash scripts/create-budget.sh $(EMAIL) 5
+
+deploy:             ## base stacks (Learner Lab: LAB_ROLE_ARN=... make deploy)
 	bash scripts/deploy.sh
 
-teardown:           ## Phase 3: run after every AWS session
+teardown:           ## run after every AWS session
 	bash scripts/teardown.sh
+
+lint-infra:
+	$(PY) -m cfnlint --regions us-east-1 us-west-2 ap-south-1 --include-checks I -- infra/*.yaml

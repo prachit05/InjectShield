@@ -23,8 +23,11 @@ client ─► ALB ─► API (Cognito JWT) ─┬─► S3   prompts/{user}/{job
 | `api/injectshield_api/` | FastAPI ingest service: `POST /scan`, `GET /result/{id}`, `GET /jobs`, `GET /health` |
 | `worker/injectshield_worker/` | SQS worker loop, detection pipeline, scoring, sample-set evaluation |
 | `db/init.sql` | `jobs` and `verdicts` tables |
-| `tests/` | detector, scoring, API (moto) and worker (moto + DLQ) tests, sample prompts |
-| `infra/` | CloudFormation (Phase 3 onwards) |
+| `tests/` | detector, scoring, API (moto), worker (moto + DLQ) and real-Postgres tests, sample prompts |
+| `infra/` | CloudFormation: `network`, `storage`, `queue`, `database`, `iam` (Phase 3) |
+| `scripts/` | `deploy.sh`, `teardown.sh`, `create-budget.sh`, `smoke.sh` |
+
+Deploying to AWS (account options, Learner Lab mode, costs): [docs/deployment.md](docs/deployment.md).
 
 The services are packaged as `injectshield_api` and `injectshield_worker`, not `app`,
 so both test suites can be imported in one pytest run.
