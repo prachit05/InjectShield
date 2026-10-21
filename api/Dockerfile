@@ -9,6 +9,7 @@ COPY api/requirements.txt /srv/api/requirements.txt
 RUN pip install /srv/shared -r /srv/api/requirements.txt
 
 COPY api/injectshield_api /srv/injectshield_api
+COPY db/init.sql /srv/db/init.sql
 
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin app
 USER app

@@ -7,8 +7,11 @@ queues it in SQS and answers 202 with a job ID. Workers do the scanning.
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
 
@@ -29,16 +32,27 @@ from injectshield_shared.models import (
 
 from .auth import current_user
 from .db import Repository
+from .migrate import migrate
 from .queue import JobQueue
 from .storage import PromptStore
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("injectshield.api")
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    settings = get_settings()
+    if settings.run_migrations:
+        migrate(settings.dsn, Path(settings.schema_file))
+    yield
+
+
 app = FastAPI(
     title="InjectShield",
     version="0.1.0",
     description="Prompt injection, memory injection and jailbreak risk scanning as a service.",
+    lifespan=lifespan,
 )
 app.add_middleware(
     CORSMiddleware,

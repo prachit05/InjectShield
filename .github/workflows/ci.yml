@@ -7,6 +7,20 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: injectshield
+          POSTGRES_PASSWORD: injectshield
+          POSTGRES_DB: injectshield
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U injectshield"
+          --health-interval 2s
+          --health-retries 30
+    env:
+      TEST_DATABASE_URL: postgresql://injectshield:injectshield@localhost:5432/injectshield
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

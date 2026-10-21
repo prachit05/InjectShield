@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     db_name: str = "injectshield"
     db_user: str = "injectshield"
     db_password: str = ""
+    db_sslmode: str = "prefer"  # "require" on RDS (Postgres 15+ forces TLS by default)
+
+    # Schema: the API applies db/init.sql at startup when enabled (ECS sets it).
+    run_migrations: bool = False
+    schema_file: str = "/srv/db/init.sql"
 
     # Auth
     auth_disabled: bool = False
@@ -49,7 +54,8 @@ class Settings(BaseSettings):
         if self.database_url:
             return self.database_url
         return (
-            f"postgresql://{quote(self.db_user)}:{quote(self.db_password)}@{self.db_host}:{self.db_port}/{self.db_name}"
+            f"postgresql://{quote(self.db_user, safe='')}:{quote(self.db_password, safe='')}"
+            f"@{self.db_host}:{self.db_port}/{self.db_name}?sslmode={self.db_sslmode}"
         )
 
     @property
