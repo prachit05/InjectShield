@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  InjectShield container registry: one ECR repository each for the API and worker
+  images. Kept apart from compute.yaml because images must be pushed before the
+  ECS services that run them can start.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: injectshield
+    AllowedPattern: "^[a-z][a-z0-9-]{2,20}$"
+  KeepImages:
+    Type: Number
+    Default: 5
+    MinValue: 1
+    Description: Older images are expired so storage stays inside the free tier.
+
+Resources:
+  ApiRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete # teardown.sh must leave nothing behind
+    UpdateReplacePolicy: Delete
+    Properties:
+      RepositoryName: !Sub "${ProjectName}/api"
+      EmptyOnDelete: true
+      ImageScanningConfiguration: { ScanOnPush: true }
+      EncryptionConfiguration: { EncryptionType: AES256 }
+      LifecyclePolicy:
+        LifecyclePolicyText: !Sub |
+          {"rules": [{"rulePriority": 1, "description": "keep the last ${KeepImages} images",
+            "selection": {"tagStatus": "any", "countType": "imageCountMoreThan", "countNumber": ${KeepImages}},
+            "action": {"type": "expire"}}]}
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+
+  WorkerRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      RepositoryName: !Sub "${ProjectName}/worker"
+      EmptyOnDelete: true
+      ImageScanningConfiguration: { ScanOnPush: true }
+      EncryptionConfiguration: { EncryptionType: AES256 }
+      LifecyclePolicy:
+        LifecyclePolicyText: !Sub |
+          {"rules": [{"rulePriority": 1, "description": "keep the last ${KeepImages} images",
+            "selection": {"tagStatus": "any", "countType": "imageCountMoreThan", "countNumber": ${KeepImages}},
+            "action": {"type": "expire"}}]}
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+
+Outputs:
+  ApiRepositoryUri:
+    Value: !GetAtt ApiRepository.RepositoryUri
+    Export: { Name: !Sub "${ProjectName}-ApiRepositoryUri" }
+  WorkerRepositoryUri:
+    Value: !GetAtt WorkerRepository.RepositoryUri
+    Export: { Name: !Sub "${ProjectName}-WorkerRepositoryUri" }

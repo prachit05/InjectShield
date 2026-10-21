@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  InjectShield worker autoscaling (requirement N1): the worker service tracks a
+  target number of visible messages on the scan queue. A backlog adds tasks (up to
+  MaxWorkers); an idle queue removes them again (down to MinWorkers).
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: injectshield
+    AllowedPattern: "^[a-z][a-z0-9-]{2,20}$"
+  MinWorkers:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 5
+    Description: >-
+      Kept at 1 or more: target tracking on queue depth cannot reliably scale out
+      from zero tasks.
+  MaxWorkers:
+    Type: Number
+    Default: 5
+    MinValue: 1
+    MaxValue: 20
+  TargetQueueDepth:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    Description: Visible messages the policy aims to keep the queue at.
+  ScaleOutCooldownSeconds:
+    Type: Number
+    Default: 60
+  ScaleInCooldownSeconds:
+    Type: Number
+    Default: 120
+  ScalingRoleArn:
+    Type: String
+    Default: ""
+    Description: >-
+      Leave empty to use the Application Auto Scaling service-linked role (own account).
+      In a Learner Lab pass LabRole if the service-linked role cannot be created.
+
+Conditions:
+  HasScalingRole: !Not [!Equals [!Ref ScalingRoleArn, ""]]
+
+Resources:
+  WorkerScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      ServiceNamespace: ecs
+      ScalableDimension: ecs:service:DesiredCount
+      ResourceId: !Sub
+        - "service/${Cluster}/${Service}"
+        - Cluster: !ImportValue { "Fn::Sub": "${ProjectName}-ClusterName" }
+          Service: !ImportValue { "Fn::Sub": "${ProjectName}-WorkerServiceName" }
+      MinCapacity: !Ref MinWorkers
+      MaxCapacity: !Ref MaxWorkers
+      RoleARN: !If [HasScalingRole, !Ref ScalingRoleArn, !Ref AWS::NoValue]
+
+  WorkerQueueDepthPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub "${ProjectName}-worker-queue-depth"
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref WorkerScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: !Ref TargetQueueDepth
+        ScaleOutCooldown: !Ref ScaleOutCooldownSeconds
+        ScaleInCooldown: !Ref ScaleInCooldownSeconds
+        CustomizedMetricSpecification:
+          Namespace: AWS/SQS
+          MetricName: ApproximateNumberOfMessagesVisible
+          Dimensions:
+            - Name: QueueName
+              Value: !ImportValue { "Fn::Sub": "${ProjectName}-ScanQueueName" }
+          Statistic: Average
+
+Outputs:
+  WorkerScalableTarget:
+    Value: !Ref WorkerScalableTarget

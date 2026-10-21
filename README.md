@@ -8,11 +8,23 @@ The API never scans inline. It stores the prompt in S3, records the job in RDS, 
 it in SQS and answers `202` with a job ID. Scanner workers, scaled on queue depth, do
 the work and write the verdict for the client to fetch.
 
-```
-client ─► ALB ─► API (Cognito JWT) ─┬─► S3   prompts/{user}/{job}.json
-                                    ├─► RDS  jobs row (queued)
-                                    └─► SQS  {job_id, s3_key} ──► workers ──► RDS verdict
-                                                 └─ 3 failures ─► DLQ
+```mermaid
+flowchart LR
+  user([Browser]) -->|HTTPS| cf[CloudFront]
+  cf -->|static files| fe[(S3 frontend)]
+  cf -->|/scan /result /jobs| alb[ALB]
+  user -.->|sign up / sign in| cog[Cognito]
+  alb --> api[API tasks<br/>ECS Fargate]
+  api -->|verify JWT| cog
+  api -->|prompts/user/job.json| s3[(S3 prompts)]
+  api -->|jobs row| rds[(RDS Postgres)]
+  api -->|job_id, s3_key| sqs[[SQS scan queue]]
+  sqs --> wk[Worker tasks<br/>ECS Fargate]
+  sqs -.->|3 failures| dlq[[DLQ]]
+  wk --> s3
+  wk -->|verdict| rds
+  wk -.->|EMF metrics| cw[CloudWatch<br/>dashboard + alarms]
+  cw -.->|queue depth| as[Auto Scaling] -.-> wk
 ```
 
 ## Layout
@@ -22,12 +34,12 @@ client ─► ALB ─► API (Cognito JWT) ─┬─► S3   prompts/{user}/{job
 | `shared/injectshield_shared/` | Pydantic models, settings, AWS client factory, CloudWatch EMF metrics |
 | `api/injectshield_api/` | FastAPI ingest service: `POST /scan`, `GET /result/{id}`, `GET /jobs`, `GET /health` |
 | `worker/injectshield_worker/` | SQS worker loop, detection pipeline, scoring, sample-set evaluation |
-| `db/init.sql` | `jobs` and `verdicts` tables |
-| `tests/` | detector, scoring, API (moto), worker (moto + DLQ) and real-Postgres tests, sample prompts |
-| `infra/` | CloudFormation: `network`, `storage`, `queue`, `database`, `iam` (Phase 3) |
-| `scripts/` | `deploy.sh`, `teardown.sh`, `create-budget.sh`, `smoke.sh` |
-
-Deploying to AWS (account options, Learner Lab mode, costs): [docs/deployment.md](docs/deployment.md).
+| `frontend/` | Static web app: Cognito sign-up/sign-in, submit, live verdict, history. No build step |
+| `db/init.sql` | `jobs` and `verdicts` tables (applied by the API at startup) |
+| `infra/` | CloudFormation, one stack per file (deploy order below) |
+| `scripts/` | `deploy.sh`, `teardown.sh`, `create-budget.sh`, `smoke.sh`, `load-test.py`, `create-user.sh`, `token.sh` |
+| `tests/` | detector, scoring, API (moto), worker (moto + DLQ), real-Postgres and infra-consistency tests, sample prompts |
+| `docs/` | [deployment guide](docs/deployment.md), [AWS services used](docs/services-used.md), [design doc](docs/design.md) |
 
 The services are packaged as `injectshield_api` and `injectshield_worker`, not `app`,
 so both test suites can be imported in one pytest run.
@@ -57,11 +69,13 @@ ruff check . && ruff format --check .
 PYTHONPATH=shared:worker python -m injectshield_worker.evaluate tests/sample_prompts
 ```
 
-Full stack (API, worker, Postgres, LocalStack S3 + SQS), with auth stubbed by `AUTH_DISABLED=true`:
+Full stack (API, worker, Postgres, LocalStack S3 + SQS, web app), with auth stubbed by `AUTH_DISABLED=true`:
 
 ```bash
-docker compose up --build
-scripts/smoke.sh
+docker compose up --build          # add --scale worker=3 for several workers
+open http://localhost:8080         # web app
+scripts/smoke.sh                   # one prompt end to end
+python3 scripts/load-test.py --count 100
 # or by hand:
 curl -s -X POST localhost:8000/scan -H 'content-type: application/json' \
   -d '{"prompt":"Ignore all previous instructions"}'
@@ -69,6 +83,33 @@ curl -s localhost:8000/result/<job_id>
 ```
 
 Interactive API docs: http://localhost:8000/docs
+
+## Deploying to AWS
+
+```bash
+scripts/create-budget.sh you@example.com 5     # own account, once (Learner Lab: skip)
+scripts/deploy.sh                              # Learner Lab: LAB_ROLE_ARN=<LabRole arn> scripts/deploy.sh
+scripts/teardown.sh                            # end of every session
+```
+
+`deploy.sh` deploys the stacks in this order, building and pushing the images to ECR
+after `registry`, and finally uploads the web app and prints its CloudFront URL:
+
+| # | Stack | Creates |
+|---|---|---|
+| 1 | `network` | VPC, 2 public subnets, S3 gateway endpoint, security groups ALB → API → RDS, worker → RDS. No NAT gateway |
+| 2 | `storage` | Encrypted prompts bucket (7-day expiry) and private frontend bucket |
+| 3 | `queue` | Scan queue + DLQ after 3 receives |
+| 4 | `database` | RDS Postgres 16, encrypted, private; password in Secrets Manager |
+| 5 | `iam` | Execution role, API and worker task roles scoped to exact ARNs (skipped in Learner Lab) |
+| 6 | `registry` | ECR repositories for the two images |
+| 7 | `auth` | Cognito user pool and web app client |
+| 8 | `compute` | ECS cluster, ALB, API and worker Fargate services |
+| 9 | `autoscaling` | Worker target tracking on scan-queue depth (1 to 5 tasks) |
+| 10 | `monitoring` | CloudWatch dashboard, alarms on DLQ, scan errors and 5xx, SNS topic |
+| 11 | `frontend` | CloudFront: web app from S3, API paths to the ALB, all over HTTPS |
+
+Accounts, Learner Lab mode, the demo flow and costs: [docs/deployment.md](docs/deployment.md).
 
 ## API
 
@@ -99,11 +140,14 @@ A job that is not the caller's returns 404, the same as one that does not exist.
 - Verdict insert is `ON CONFLICT (job_id) DO NOTHING`, and a redelivered message for a
   finished job is just deleted.
 - Failures are retried with backoff; on the 3rd receive the job is marked `failed` and
-  SQS moves the message to the DLQ.
+  SQS moves the message to the DLQ, which raises a CloudWatch alarm.
+- Workers finish the message in hand on `SIGTERM`, so scale-in never drops a job.
 - Prompt bodies are never logged.
 
 ## Metrics
 
 The worker prints CloudWatch Embedded Metric Format lines (namespace `InjectShield`):
 `ScanLatency`, `ProcessingLatency`, `EndToEndLatency`, `JobsCompleted`, `ScanErrors`.
-With the `awslogs` driver on ECS these become metrics with no extra API calls or IAM permissions.
+With the `awslogs` driver on ECS these become metrics with no extra API calls or IAM
+permissions. The `injectshield` dashboard plots them next to queue depth, running
+tasks (Container Insights) and ALB 5xx.

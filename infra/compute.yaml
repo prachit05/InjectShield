@@ -1,0 +1,322 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  InjectShield compute: ECS cluster, the internet-facing ALB, and Fargate services
+  for the API (behind the ALB) and the scanner workers (no inbound traffic; scaled
+  on queue depth by autoscaling.yaml). Tasks run in the public subnets with public
+  IPs, so no NAT gateway is needed (requirement N6).
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: injectshield
+    AllowedPattern: "^[a-z][a-z0-9-]{2,20}$"
+  ImageTag:
+    Type: String
+    Description: Tag pushed to both ECR repositories by deploy.sh (the git commit).
+    AllowedPattern: "^[A-Za-z0-9_.-]{1,128}$"
+  ExecutionRoleArn:
+    Type: String
+    Description: ECS task execution role (iam.yaml output, or LabRole in a Learner Lab).
+  ApiTaskRoleArn:
+    Type: String
+    Description: API task role (iam.yaml output, or LabRole in a Learner Lab).
+  WorkerTaskRoleArn:
+    Type: String
+    Description: Worker task role (iam.yaml output, or LabRole in a Learner Lab).
+  CpuArchitecture:
+    Type: String
+    Default: X86_64
+    AllowedValues: [X86_64, ARM64]
+    Description: Must match the platform the images were built for.
+  ApiDesiredCount:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 4
+  WorkerCpu:
+    Type: String
+    Default: "256"
+    AllowedValues: ["256", "512", "1024"]
+    Description: Use 1024 with 2048+ MiB memory when the classifier is enabled.
+  WorkerMemory:
+    Type: String
+    Default: "512"
+    AllowedValues: ["512", "1024", "2048", "3072", "4096"]
+  ClassifierEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Only set true if the worker image was built with INSTALL_CLASSIFIER=true.
+  CorsOrigins:
+    Type: String
+    Default: "*"
+    Description: Comma-separated. The frontend is same-origin through CloudFront, so this only matters for other clients.
+  ContainerInsights:
+    Type: String
+    Default: enabled
+    AllowedValues: [enabled, disabled]
+    Description: Publishes RunningTaskCount for the dashboard (a few cents per session).
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    AllowedValues: [1, 3, 5, 7, 14, 30]
+
+Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref ProjectName
+      CapacityProviders: [FARGATE, FARGATE_SPOT]
+      ClusterSettings:
+        - { Name: containerInsights, Value: !Ref ContainerInsights }
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/${ProjectName}/api"
+      RetentionInDays: !Ref LogRetentionDays
+
+  WorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/${ProjectName}/worker"
+      RetentionInDays: !Ref LogRetentionDays
+
+  # ---------- load balancer ----------
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${ProjectName}-alb"
+      Scheme: internet-facing
+      Type: application
+      Subnets:
+        - !ImportValue { "Fn::Sub": "${ProjectName}-PublicSubnet1" }
+        - !ImportValue { "Fn::Sub": "${ProjectName}-PublicSubnet2" }
+      SecurityGroups:
+        - !ImportValue { "Fn::Sub": "${ProjectName}-AlbSecurityGroup" }
+      LoadBalancerAttributes:
+        - { Key: routing.http.drop_invalid_header_fields.enabled, Value: "true" }
+        - { Key: idle_timeout.timeout_seconds, Value: "30" }
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+
+  ApiTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${ProjectName}-api"
+      VpcId: !ImportValue { "Fn::Sub": "${ProjectName}-VpcId" }
+      TargetType: ip
+      Protocol: HTTP
+      Port: 8000
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 15
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher: { HttpCode: "200" }
+      TargetGroupAttributes:
+        - { Key: deregistration_delay.timeout_seconds, Value: "15" }
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ApiTargetGroup
+
+  # ---------- API ----------
+
+  ApiTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${ProjectName}-api"
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: "256"
+      Memory: "512"
+      RuntimePlatform:
+        CpuArchitecture: !Ref CpuArchitecture
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !Ref ExecutionRoleArn
+      TaskRoleArn: !Ref ApiTaskRoleArn
+      ContainerDefinitions:
+        - Name: api
+          Image: !Sub
+            - "${Repo}:${ImageTag}"
+            - Repo: !ImportValue { "Fn::Sub": "${ProjectName}-ApiRepositoryUri" }
+          Essential: true
+          ReadonlyRootFilesystem: false
+          PortMappings:
+            - { ContainerPort: 8000, Protocol: tcp }
+          Environment:
+            - { Name: AWS_REGION, Value: !Ref AWS::Region }
+            - { Name: BUCKET, Value: !ImportValue { "Fn::Sub": "${ProjectName}-PromptsBucketName" } }
+            - { Name: QUEUE_URL, Value: !ImportValue { "Fn::Sub": "${ProjectName}-ScanQueueUrl" } }
+            - { Name: DB_HOST, Value: !ImportValue { "Fn::Sub": "${ProjectName}-DbEndpoint" } }
+            - { Name: DB_PORT, Value: !ImportValue { "Fn::Sub": "${ProjectName}-DbPort" } }
+            - { Name: DB_NAME, Value: !ImportValue { "Fn::Sub": "${ProjectName}-DbName" } }
+            - { Name: DB_SSLMODE, Value: require }
+            - { Name: RUN_MIGRATIONS, Value: "true" }
+            - { Name: AUTH_DISABLED, Value: "false" }
+            - { Name: COGNITO_USER_POOL_ID, Value: !ImportValue { "Fn::Sub": "${ProjectName}-UserPoolId" } }
+            - { Name: COGNITO_APP_CLIENT_ID, Value: !ImportValue { "Fn::Sub": "${ProjectName}-AppClientId" } }
+            - { Name: CORS_ORIGINS, Value: !Ref CorsOrigins }
+          Secrets:
+            - Name: DB_USER
+              ValueFrom: !Sub
+                - "${SecretArn}:username::"
+                - SecretArn: !ImportValue { "Fn::Sub": "${ProjectName}-DbSecretArn" }
+            - Name: DB_PASSWORD
+              ValueFrom: !Sub
+                - "${SecretArn}:password::"
+                - SecretArn: !ImportValue { "Fn::Sub": "${ProjectName}-DbSecretArn" }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ApiLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: api
+
+  ApiService:
+    Type: AWS::ECS::Service
+    DependsOn: HttpListener
+    Properties:
+      ServiceName: !Sub "${ProjectName}-api"
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref ApiTaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: !Ref ApiDesiredCount
+      HealthCheckGracePeriodSeconds: 60
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+        DeploymentCircuitBreaker: { Enable: true, Rollback: true }
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED # reach ECR, SQS, Secrets Manager and Cognito without a NAT gateway
+          Subnets:
+            - !ImportValue { "Fn::Sub": "${ProjectName}-PublicSubnet1" }
+            - !ImportValue { "Fn::Sub": "${ProjectName}-PublicSubnet2" }
+          SecurityGroups:
+            - !ImportValue { "Fn::Sub": "${ProjectName}-ApiSecurityGroup" }
+      LoadBalancers:
+        - ContainerName: api
+          ContainerPort: 8000
+          TargetGroupArn: !Ref ApiTargetGroup
+      PropagateTags: SERVICE
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+
+  # ---------- workers ----------
+
+  WorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${ProjectName}-worker"
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: !Ref WorkerCpu
+      Memory: !Ref WorkerMemory
+      RuntimePlatform:
+        CpuArchitecture: !Ref CpuArchitecture
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !Ref ExecutionRoleArn
+      TaskRoleArn: !Ref WorkerTaskRoleArn
+      ContainerDefinitions:
+        - Name: worker
+          Image: !Sub
+            - "${Repo}:${ImageTag}"
+            - Repo: !ImportValue { "Fn::Sub": "${ProjectName}-WorkerRepositoryUri" }
+          Essential: true
+          StopTimeout: 45 # finish the current long poll and scan after SIGTERM on scale-in
+          Environment:
+            - { Name: AWS_REGION, Value: !Ref AWS::Region }
+            - { Name: BUCKET, Value: !ImportValue { "Fn::Sub": "${ProjectName}-PromptsBucketName" } }
+            - { Name: QUEUE_URL, Value: !ImportValue { "Fn::Sub": "${ProjectName}-ScanQueueUrl" } }
+            - { Name: DB_HOST, Value: !ImportValue { "Fn::Sub": "${ProjectName}-DbEndpoint" } }
+            - { Name: DB_PORT, Value: !ImportValue { "Fn::Sub": "${ProjectName}-DbPort" } }
+            - { Name: DB_NAME, Value: !ImportValue { "Fn::Sub": "${ProjectName}-DbName" } }
+            - { Name: DB_SSLMODE, Value: require }
+            - { Name: WORKER_MAX_RECEIVES, Value: "3" } # matches queue.yaml MaxReceiveCount
+            - { Name: CLASSIFIER_ENABLED, Value: !Ref ClassifierEnabled }
+          Secrets:
+            - Name: DB_USER
+              ValueFrom: !Sub
+                - "${SecretArn}:username::"
+                - SecretArn: !ImportValue { "Fn::Sub": "${ProjectName}-DbSecretArn" }
+            - Name: DB_PASSWORD
+              ValueFrom: !Sub
+                - "${SecretArn}:password::"
+                - SecretArn: !ImportValue { "Fn::Sub": "${ProjectName}-DbSecretArn" }
+          LogConfiguration:
+            LogDriver: awslogs # worker prints EMF lines, which CloudWatch turns into metrics
+            Options:
+              awslogs-group: !Ref WorkerLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: worker
+
+  WorkerService:
+    Type: AWS::ECS::Service
+    # The API applies the schema at startup; starting workers after it avoids a
+    # first-deploy race where a worker queries tables that do not exist yet.
+    DependsOn: ApiService
+    Properties:
+      ServiceName: !Sub "${ProjectName}-worker"
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref WorkerTaskDefinition
+      LaunchType: FARGATE
+      # No DesiredCount: autoscaling.yaml owns it, and a stack update must not reset it.
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 0
+        MaximumPercent: 200
+        DeploymentCircuitBreaker: { Enable: true, Rollback: true }
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !ImportValue { "Fn::Sub": "${ProjectName}-PublicSubnet1" }
+            - !ImportValue { "Fn::Sub": "${ProjectName}-PublicSubnet2" }
+          SecurityGroups:
+            - !ImportValue { "Fn::Sub": "${ProjectName}-WorkerSecurityGroup" }
+      PropagateTags: SERVICE
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+
+Outputs:
+  AlbDnsName:
+    Value: !GetAtt LoadBalancer.DNSName
+    Export: { Name: !Sub "${ProjectName}-AlbDnsName" }
+  ApiUrl:
+    Value: !Sub "http://${LoadBalancer.DNSName}"
+  LoadBalancerFullName:
+    Value: !GetAtt LoadBalancer.LoadBalancerFullName
+    Export: { Name: !Sub "${ProjectName}-LoadBalancerFullName" }
+  TargetGroupFullName:
+    Value: !GetAtt ApiTargetGroup.TargetGroupFullName
+    Export: { Name: !Sub "${ProjectName}-TargetGroupFullName" }
+  ClusterName:
+    Value: !Ref Cluster
+    Export: { Name: !Sub "${ProjectName}-ClusterName" }
+  ApiServiceName:
+    Value: !GetAtt ApiService.Name
+    Export: { Name: !Sub "${ProjectName}-ApiServiceName" }
+  WorkerServiceName:
+    Value: !GetAtt WorkerService.Name
+    Export: { Name: !Sub "${ProjectName}-WorkerServiceName" }
+  ApiLogGroupName:
+    Value: !Ref ApiLogGroup
+    Export: { Name: !Sub "${ProjectName}-ApiLogGroupName" }
+  WorkerLogGroupName:
+    Value: !Ref WorkerLogGroup
+    Export: { Name: !Sub "${ProjectName}-WorkerLogGroupName" }

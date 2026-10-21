@@ -1,0 +1,133 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  InjectShield frontend (requirement F6): one CloudFront distribution over HTTPS.
+  The static site comes from the private frontend bucket (origin access control);
+  /scan, /result/*, /jobs and /health are forwarded to the ALB. Page and API share
+  one origin, so the browser never makes an insecure or cross-origin call.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: injectshield
+    AllowedPattern: "^[a-z][a-z0-9-]{2,20}$"
+  PriceClass:
+    Type: String
+    Default: PriceClass_100
+    AllowedValues: [PriceClass_100, PriceClass_200, PriceClass_All]
+
+Mappings:
+  # AWS managed policy IDs (the same in every account).
+  ManagedPolicies:
+    Cache:
+      CachingOptimized: 658327ea-f89d-4fab-a63d-7e88639e58f6
+    OriginRequest:
+      AllViewerExceptHostHeader: b689b0a8-53d0-40ab-baf2-68738e2966ac
+
+Resources:
+  FrontendOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${ProjectName}-frontend"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # API responses are never cached (default TTL 0 and the API sends no
+  # Cache-Control), but the Authorization header has to be named in a cache
+  # policy for CloudFront to forward it to the origin.
+  ApiCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub "${ProjectName}-api-no-cache"
+        Comment: Forward Authorization and query strings, do not cache
+        MinTTL: 0
+        DefaultTTL: 0
+        MaxTTL: 1
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          HeadersConfig:
+            HeaderBehavior: whitelist
+            Headers: [Authorization]
+          CookiesConfig: { CookieBehavior: none }
+          QueryStringsConfig: { QueryStringBehavior: all }
+
+  SecurityHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub "${ProjectName}-security-headers"
+        SecurityHeadersConfig:
+          ContentTypeOptions: { Override: true }
+          FrameOptions: { FrameOption: DENY, Override: true }
+          ReferrerPolicy: { ReferrerPolicy: same-origin, Override: true }
+          StrictTransportSecurity: { AccessControlMaxAgeSec: 31536000, IncludeSubdomains: false, Override: true }
+          ContentSecurityPolicy:
+            Override: true
+            ContentSecurityPolicy: !Sub "default-src 'self'; connect-src 'self' https://cognito-idp.${AWS::Region}.amazonaws.com; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub "${ProjectName} web app and API"
+        Enabled: true
+        HttpVersion: http2and3
+        PriceClass: !Ref PriceClass
+        DefaultRootObject: index.html
+        Origins:
+          - Id: frontend
+            DomainName: !ImportValue { "Fn::Sub": "${ProjectName}-FrontendBucketRegionalDomainName" }
+            OriginAccessControlId: !GetAtt FrontendOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: "" # empty: access is through the origin access control
+          - Id: api
+            DomainName: !ImportValue { "Fn::Sub": "${ProjectName}-AlbDnsName" }
+            CustomOriginConfig:
+              OriginProtocolPolicy: http-only # ALB listens on 80 inside AWS; viewers always use HTTPS
+              HTTPPort: 80
+              OriginReadTimeout: 30
+        DefaultCacheBehavior:
+          TargetOriginId: frontend
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD]
+          CachePolicyId: !FindInMap [ManagedPolicies, Cache, CachingOptimized]
+          ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+        CacheBehaviors:
+          - PathPattern: /scan
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: !Ref ApiCachePolicy
+            OriginRequestPolicyId: !FindInMap [ManagedPolicies, OriginRequest, AllViewerExceptHostHeader]
+          - PathPattern: /result/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: !Ref ApiCachePolicy
+            OriginRequestPolicyId: !FindInMap [ManagedPolicies, OriginRequest, AllViewerExceptHostHeader]
+          - PathPattern: /jobs
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: !Ref ApiCachePolicy
+            OriginRequestPolicyId: !FindInMap [ManagedPolicies, OriginRequest, AllViewerExceptHostHeader]
+          - PathPattern: /health
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD]
+            CachePolicyId: !Ref ApiCachePolicy
+            OriginRequestPolicyId: !FindInMap [ManagedPolicies, OriginRequest, AllViewerExceptHostHeader]
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+
+Outputs:
+  DistributionId:
+    Value: !Ref Distribution
+  DistributionDomainName:
+    Value: !GetAtt Distribution.DomainName
+  WebUrl:
+    Value: !Sub "https://${Distribution.DomainName}"

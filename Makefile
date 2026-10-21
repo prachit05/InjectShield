@@ -1,4 +1,4 @@
-.PHONY: install dev down test lint format eval smoke budget deploy teardown lint-infra
+.PHONY: install dev down test lint format eval smoke load-test web budget deploy deploy-base teardown user lint-infra
 
 PY ?= .venv/bin/python
 
@@ -29,11 +29,23 @@ eval:               ## precision / recall on tests/sample_prompts
 smoke:              ## one prompt end to end (BASE_URL / TOKEN to target AWS)
 	bash scripts/smoke.sh
 
+load-test:          ## flood the queue: make load-test COUNT=500 (BASE_URL / TOKEN to target AWS)
+	python3 scripts/load-test.py --count $(or $(COUNT),500)
+
+web:                ## serve the web app on :8080 against a local API (no Docker)
+	python3 -m http.server 8080 -d frontend
+
 budget:             ## once, own account only: make budget EMAIL=you@example.com
 	bash scripts/create-budget.sh $(EMAIL) 5
 
-deploy:             ## base stacks (Learner Lab: LAB_ROLE_ARN=... make deploy)
+deploy:             ## everything: stacks, images, web app (Learner Lab: LAB_ROLE_ARN=... make deploy)
 	bash scripts/deploy.sh
+
+deploy-base:        ## Phase 3 stacks only
+	bash scripts/deploy.sh base
+
+user:               ## confirmed Cognito user for demos: make user EMAIL=you@example.com
+	bash scripts/create-user.sh $(EMAIL)
 
 teardown:           ## run after every AWS session
 	bash scripts/teardown.sh

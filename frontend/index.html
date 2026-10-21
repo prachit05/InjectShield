@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>InjectShield</title>
+  <meta name="description" content="Scan prompts for prompt injection, memory injection and jailbreak attempts.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 4 7v8c0 7.5 5.1 13.4 12 15 6.9-1.6 12-7.5 12-15V7L16 2z' fill='%232f6fde'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="src/style.css">
+  <script src="config.js"></script>
+  <script type="module" src="src/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 4 7v8c0 7.5 5.1 13.4 12 15 6.9-1.6 12-7.5 12-15V7L16 2z"/></svg>
+      <span>InjectShield</span>
+    </div>
+    <div class="session" id="session" hidden>
+      <span id="session-user"></span>
+      <button type="button" class="link" id="sign-out">Sign out</button>
+    </div>
+  </header>
+
+  <!-- Signed out -->
+  <main id="auth-view" class="auth" hidden>
+    <section class="card auth-card">
+      <h1>Scan prompts before your model sees them</h1>
+      <p class="muted">Risk verdicts for prompt injection, memory injection and jailbreak attempts.</p>
+
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" id="tab-sign-in" aria-selected="true">Sign in</button>
+        <button type="button" role="tab" id="tab-sign-up" aria-selected="false">Create account</button>
+      </div>
+
+      <form id="sign-in-form" class="stack">
+        <label>Email <input type="email" name="email" autocomplete="username" required></label>
+        <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
+        <button type="submit" class="primary">Sign in</button>
+      </form>
+
+      <form id="sign-up-form" class="stack" hidden>
+        <label>Email <input type="email" name="email" autocomplete="username" required></label>
+        <label>Password
+          <input type="password" name="password" autocomplete="new-password" minlength="8" required>
+          <small class="muted">At least 8 characters with upper case, lower case and a number.</small>
+        </label>
+        <button type="submit" class="primary">Create account</button>
+      </form>
+
+      <form id="confirm-form" class="stack" hidden>
+        <p>We emailed a verification code to <strong id="confirm-email"></strong>.</p>
+        <label>Verification code <input name="code" inputmode="numeric" autocomplete="one-time-code" required></label>
+        <button type="submit" class="primary">Verify and sign in</button>
+        <button type="button" class="link" id="resend-code">Send a new code</button>
+      </form>
+
+      <p class="message" id="auth-message" role="status"></p>
+    </section>
+  </main>
+
+  <!-- Signed in -->
+  <main id="app-view" class="layout" hidden>
+    <section class="card">
+      <h2>New scan</h2>
+      <form id="scan-form" class="stack">
+        <label for="prompt">Prompt</label>
+        <textarea id="prompt" name="prompt" rows="6" maxlength="20000" required
+          placeholder="Paste the user prompt to check"></textarea>
+
+        <details id="context-details">
+          <summary>Add retrieved memory or chat history <span class="muted" id="context-optional">(optional)</span>
+            <span class="attached" id="context-badge" hidden></span></summary>
+          <textarea id="context" name="context" rows="4" maxlength="50000"
+            placeholder="Context is checked for instructions that try to persist or impersonate the system"></textarea>
+          <button type="button" class="link" id="clear-context" hidden>Clear context</button>
+        </details>
+
+        <div class="row">
+          <button type="submit" class="primary" id="scan-button">Scan</button>
+          <span class="muted examples">Try:
+            <button type="button" class="link" data-example="injection">injection</button>
+            <button type="button" class="link" data-example="jailbreak">jailbreak</button>
+            <button type="button" class="link" data-example="memory">memory</button>
+            <button type="button" class="link" data-example="safe">safe</button>
+          </span>
+        </div>
+      </form>
+    </section>
+
+    <section class="card" id="result-card" aria-live="polite">
+      <h2>Verdict</h2>
+      <div id="result-empty" class="empty">Submit a prompt to see its verdict here.</div>
+
+      <div id="result-pending" class="pending" hidden>
+        <span class="spinner" aria-hidden="true"></span>
+        <span id="pending-text">Queued</span>
+      </div>
+
+      <div id="result-failed" class="message error" hidden></div>
+
+      <div id="result" hidden>
+        <div class="verdict-head">
+          <span class="label-chip" id="verdict-label"></span>
+          <div class="risk">
+            <div class="risk-number"><span id="risk-score"></span><small>risk</small></div>
+            <div class="meter"><div class="meter-fill" id="risk-meter"></div>
+              <div class="meter-tick tick-suspicious"></div><div class="meter-tick tick-malicious"></div></div>
+          </div>
+        </div>
+
+        <h3>Categories</h3>
+        <div class="categories" id="categories"></div>
+
+        <h3>Evidence</h3>
+        <p class="muted" id="evidence-empty" hidden>No rule matched.</p>
+        <div class="table-wrap">
+          <table id="evidence" hidden>
+            <thead><tr><th>Matched text</th><th>Rule</th><th>Category</th><th class="num">Weight</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <p class="meta muted" id="verdict-meta"></p>
+      </div>
+    </section>
+
+    <section class="card history">
+      <div class="row spread">
+        <h2>History</h2>
+        <button type="button" class="link" id="refresh-history">Refresh</button>
+      </div>
+      <p class="muted" id="history-empty" hidden>No scans yet.</p>
+      <ol id="history-list"></ol>
+    </section>
+  </main>
+</body>
+</html>
