@@ -1,0 +1,227 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="940" viewBox="0 0 1600 940" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker><marker id="arrS" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker></defs>
+<rect width="1600" height="940" fill="#f7f8fa"/>
+<text x="30" y="42" font-size="24" font-weight="800" fill="#16191f" text-anchor="start" >InjectShield — Architecture on AWS</text>
+<text x="30" y="66" font-size="13" font-weight="normal" fill="#3b4250" text-anchor="start" >Prompt / memory-injection &amp; jailbreak scanning as a service. SQS splits a thin ingest API from scanner workers that autoscale on queue depth.</text>
+<rect x="190" y="100" width="225" height="430" rx="12" fill="#ffffff00" stroke="#5f6b7a" stroke-width="1.5" stroke-dasharray="5 4"/>
+<text x="204" y="120" font-size="12.5" font-weight="700" fill="#5f6b7a" text-anchor="start" >Edge &amp; identity</text>
+<rect x="430" y="100" width="1140" height="735" rx="12" fill="#ffffff" stroke="#232F3E" stroke-width="1.5" />
+<text x="444" y="120" font-size="12.5" font-weight="700" fill="#232F3E" text-anchor="start" >AWS Cloud · Region ap-southeast-2 (Sydney)</text>
+<rect x="455" y="145" width="650" height="545" rx="12" fill="#f6f2ff" stroke="#8C4FFF" stroke-width="1.5" />
+<text x="469" y="165" font-size="12.5" font-weight="700" fill="#8C4FFF" text-anchor="start" >VPC · 2 public subnets in 2 AZs · no NAT gateway</text>
+<rect x="675" y="190" width="250" height="455" rx="12" fill="#fff6ee" stroke="#ED7100" stroke-width="1.5" />
+<text x="689" y="210" font-size="12.5" font-weight="700" fill="#ED7100" text-anchor="start" >ECS cluster · AWS Fargate</text>
+<rect x="25" y="250" width="140" height="100" rx="8" fill="#ffffff" stroke="#232F3E" stroke-width="2"/>
+<rect x="25" y="250" width="6" height="100" rx="3" fill="#232F3E"/>
+<text x="41" y="272" font-size="14" font-weight="700" fill="#232F3E" text-anchor="start" >User</text>
+<text x="41" y="290" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >Browser (web app)</text>
+<text x="41" y="305" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >or curl / Swagger</text>
+<rect x="205" y="130" width="195" height="90" rx="8" fill="#ffffff" stroke="#DD344C" stroke-width="2"/>
+<rect x="205" y="130" width="6" height="90" rx="3" fill="#DD344C"/>
+<text x="221" y="152" font-size="14" font-weight="700" fill="#DD344C" text-anchor="start" >Amazon Cognito</text>
+<text x="221" y="170" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >User pool + app client</text>
+<text x="221" y="185" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >sign-up, login, JWTs</text>
+<rect x="367.2" y="138" width="24.8" height="18" rx="9" fill="#DD344C" opacity="0.12"/>
+<text x="379.6" y="151" font-size="10.5" font-weight="600" fill="#DD344C" text-anchor="middle" >F1</text>
+<rect x="205" y="250" width="195" height="100" rx="8" fill="#ffffff" stroke="#8C4FFF" stroke-width="2"/>
+<rect x="205" y="250" width="6" height="100" rx="3" fill="#8C4FFF"/>
+<text x="221" y="272" font-size="14" font-weight="700" fill="#8C4FFF" text-anchor="start" >Amazon CloudFront</text>
+<text x="221" y="290" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >Single HTTPS entry</text>
+<text x="221" y="305" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >security headers (CSP, HSTS)</text>
+<text x="221" y="320" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >/ → S3 · API paths → ALB</text>
+<rect x="205" y="420" width="195" height="90" rx="8" fill="#ffffff" stroke="#7AA116" stroke-width="2"/>
+<rect x="205" y="420" width="6" height="90" rx="3" fill="#7AA116"/>
+<text x="221" y="442" font-size="14" font-weight="700" fill="#7AA116" text-anchor="start" >Amazon S3</text>
+<text x="221" y="460" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >Frontend bucket (private)</text>
+<text x="221" y="475" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >HTML / JS / CSS via OAC</text>
+<rect x="367.2" y="428" width="24.8" height="18" rx="9" fill="#7AA116" opacity="0.12"/>
+<text x="379.6" y="441" font-size="10.5" font-weight="600" fill="#7AA116" text-anchor="middle" >F6</text>
+<rect x="480" y="250" width="165" height="100" rx="8" fill="#ffffff" stroke="#8C4FFF" stroke-width="2"/>
+<rect x="480" y="250" width="6" height="100" rx="3" fill="#8C4FFF"/>
+<text x="496" y="272" font-size="14" font-weight="700" fill="#8C4FFF" text-anchor="start" >Application LB</text>
+<text x="496" y="290" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >HTTP :80 → API :8000</text>
+<text x="496" y="305" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >health check /health</text>
+<rect x="480" y="470" width="165" height="115" rx="8" fill="#ffffff" stroke="#C925D1" stroke-width="2"/>
+<rect x="480" y="470" width="6" height="115" rx="3" fill="#C925D1"/>
+<text x="496" y="492" font-size="14" font-weight="700" fill="#C925D1" text-anchor="start" >Amazon RDS</text>
+<text x="496" y="510" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >PostgreSQL 16</text>
+<text x="496" y="525" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >jobs · verdicts</text>
+<text x="496" y="540" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >private, encrypted</text>
+<rect x="593.0" y="478" width="44.0" height="18" rx="9" fill="#C925D1" opacity="0.12"/>
+<text x="615.0" y="491" font-size="10.5" font-weight="600" fill="#C925D1" text-anchor="middle" >F4 F5</text>
+<rect x="695" y="235" width="210" height="125" rx="8" fill="#ffffff" stroke="#ED7100" stroke-width="2"/>
+<rect x="695" y="235" width="6" height="125" rx="3" fill="#ED7100"/>
+<text x="711" y="257" font-size="14" font-weight="700" fill="#ED7100" text-anchor="start" >API service</text>
+<text x="711" y="275" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >FastAPI · 256 CPU / 512 MB</text>
+<text x="711" y="290" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >verify Cognito JWT</text>
+<text x="711" y="305" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >store + queue only</text>
+<text x="711" y="320" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >→ 202 {job_id} in &lt; 1 s</text>
+<rect x="853.0" y="243" width="44.0" height="18" rx="9" fill="#ED7100" opacity="0.12"/>
+<text x="875.0" y="256" font-size="10.5" font-weight="600" fill="#ED7100" text-anchor="middle" >F2 F3</text>
+<rect x="695" y="460" width="210" height="160" rx="8" fill="#ffffff" stroke="#ED7100" stroke-width="2"/>
+<rect x="695" y="460" width="6" height="160" rx="3" fill="#ED7100"/>
+<text x="711" y="482" font-size="14" font-weight="700" fill="#ED7100" text-anchor="start" >Worker service</text>
+<text x="711" y="500" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >1–5 tasks (autoscaled)</text>
+<text x="711" y="515" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >normalise → rules →</text>
+<text x="711" y="530" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >memory-injection → score</text>
+<text x="711" y="545" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >write verdict, then delete</text>
+<text x="711" y="560" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >message (idempotent)</text>
+<rect x="872.2" y="468" width="24.8" height="18" rx="9" fill="#ED7100" opacity="0.12"/>
+<text x="884.6" y="481" font-size="10.5" font-weight="600" fill="#ED7100" text-anchor="middle" >N1</text>
+<rect x="1150" y="200" width="205" height="100" rx="8" fill="#ffffff" stroke="#7AA116" stroke-width="2"/>
+<rect x="1150" y="200" width="6" height="100" rx="3" fill="#7AA116"/>
+<text x="1166" y="222" font-size="14" font-weight="700" fill="#7AA116" text-anchor="start" >Amazon S3</text>
+<text x="1166" y="240" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >Prompts bucket</text>
+<text x="1166" y="255" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >prompts/{user}/{job}.json</text>
+<text x="1166" y="270" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >SSE · TLS-only · 7-day expiry</text>
+<rect x="1385" y="200" width="165" height="100" rx="8" fill="#ffffff" stroke="#DD344C" stroke-width="2"/>
+<rect x="1385" y="200" width="6" height="100" rx="3" fill="#DD344C"/>
+<text x="1401" y="222" font-size="14" font-weight="700" fill="#DD344C" text-anchor="start" >Secrets Manager</text>
+<text x="1401" y="240" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >generated RDS password</text>
+<text x="1401" y="255" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >injected into tasks</text>
+<text x="1401" y="270" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >at start</text>
+<rect x="1150" y="400" width="195" height="95" rx="8" fill="#ffffff" stroke="#E7157B" stroke-width="2"/>
+<rect x="1150" y="400" width="6" height="95" rx="3" fill="#E7157B"/>
+<text x="1166" y="422" font-size="14" font-weight="700" fill="#E7157B" text-anchor="start" >Amazon SQS</text>
+<text x="1166" y="440" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >Scan queue</text>
+<text x="1166" y="455" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >long polling · 60 s visibility</text>
+<text x="1166" y="470" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >{job_id, s3_key} only</text>
+<rect x="1385" y="400" width="165" height="95" rx="8" fill="#ffffff" stroke="#E7157B" stroke-width="2"/>
+<rect x="1385" y="400" width="6" height="95" rx="3" fill="#E7157B"/>
+<text x="1401" y="422" font-size="14" font-weight="700" fill="#E7157B" text-anchor="start" >SQS dead-letter</text>
+<text x="1401" y="440" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >after 3 failed receives</text>
+<text x="1401" y="455" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >kept 14 days</text>
+<text x="1401" y="470" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >alarmed</text>
+<rect x="1517.2" y="408" width="24.8" height="18" rx="9" fill="#E7157B" opacity="0.12"/>
+<text x="1529.6" y="421" font-size="10.5" font-weight="600" fill="#E7157B" text-anchor="middle" >N2</text>
+<rect x="1150" y="585" width="205" height="80" rx="8" fill="#ffffff" stroke="#E7157B" stroke-width="2"/>
+<rect x="1150" y="585" width="6" height="80" rx="3" fill="#E7157B"/>
+<text x="1166" y="607" font-size="14" font-weight="700" fill="#E7157B" text-anchor="start" >App Auto Scaling</text>
+<text x="1166" y="625" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >target ≈ 10 visible messages</text>
+<text x="1166" y="640" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >worker tasks: min 1 · max 5</text>
+<rect x="455" y="725" width="150" height="85" rx="8" fill="#ffffff" stroke="#ED7100" stroke-width="2"/>
+<rect x="455" y="725" width="6" height="85" rx="3" fill="#ED7100"/>
+<text x="471" y="747" font-size="14" font-weight="700" fill="#ED7100" text-anchor="start" >Amazon ECR</text>
+<text x="471" y="765" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >api + worker images</text>
+<text x="471" y="780" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >scan on push</text>
+<rect x="620" y="725" width="215" height="85" rx="8" fill="#ffffff" stroke="#E7157B" stroke-width="2"/>
+<rect x="620" y="725" width="6" height="85" rx="3" fill="#E7157B"/>
+<text x="636" y="747" font-size="14" font-weight="700" fill="#E7157B" text-anchor="start" >Amazon CloudWatch</text>
+<text x="636" y="765" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >logs · EMF metrics · Insights</text>
+<text x="636" y="780" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >dashboard · alarms</text>
+<rect x="802.2" y="733" width="24.8" height="18" rx="9" fill="#E7157B" opacity="0.12"/>
+<text x="814.6" y="746" font-size="10.5" font-weight="600" fill="#E7157B" text-anchor="middle" >N4</text>
+<rect x="850" y="725" width="150" height="85" rx="8" fill="#ffffff" stroke="#E7157B" stroke-width="2"/>
+<rect x="850" y="725" width="6" height="85" rx="3" fill="#E7157B"/>
+<text x="866" y="747" font-size="14" font-weight="700" fill="#E7157B" text-anchor="start" >Amazon SNS</text>
+<text x="866" y="765" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >alarm e-mails</text>
+<text x="866" y="780" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >to the team</text>
+<rect x="1015" y="725" width="170" height="85" rx="8" fill="#ffffff" stroke="#DD344C" stroke-width="2"/>
+<rect x="1015" y="725" width="6" height="85" rx="3" fill="#DD344C"/>
+<text x="1031" y="747" font-size="14" font-weight="700" fill="#DD344C" text-anchor="start" >AWS IAM</text>
+<text x="1031" y="765" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >one least-privilege</text>
+<text x="1031" y="780" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >role per service</text>
+<rect x="1152.2" y="733" width="24.8" height="18" rx="9" fill="#DD344C" opacity="0.12"/>
+<text x="1164.6" y="746" font-size="10.5" font-weight="600" fill="#DD344C" text-anchor="middle" >N3</text>
+<rect x="1200" y="725" width="170" height="85" rx="8" fill="#ffffff" stroke="#E7157B" stroke-width="2"/>
+<rect x="1200" y="725" width="6" height="85" rx="3" fill="#E7157B"/>
+<text x="1216" y="747" font-size="14" font-weight="700" fill="#E7157B" text-anchor="start" >AWS Budgets</text>
+<text x="1216" y="765" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >$5 / month alert</text>
+<text x="1216" y="780" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >set before deploy</text>
+<rect x="1337.2" y="733" width="24.8" height="18" rx="9" fill="#E7157B" opacity="0.12"/>
+<text x="1349.6" y="746" font-size="10.5" font-weight="600" fill="#E7157B" text-anchor="middle" >N6</text>
+<rect x="1385" y="725" width="165" height="85" rx="8" fill="#ffffff" stroke="#E7157B" stroke-width="2"/>
+<rect x="1385" y="725" width="6" height="85" rx="3" fill="#E7157B"/>
+<text x="1401" y="747" font-size="14" font-weight="700" fill="#E7157B" text-anchor="start" >CloudFormation</text>
+<text x="1401" y="765" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >11 stacks: deploy.sh</text>
+<text x="1401" y="780" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >removed by teardown.sh</text>
+<rect x="1517.2" y="733" width="24.8" height="18" rx="9" fill="#E7157B" opacity="0.12"/>
+<text x="1529.6" y="746" font-size="10.5" font-weight="600" fill="#E7157B" text-anchor="middle" >N5</text>
+<path d="M165,270 L205,185" fill="none" stroke="#16191f" stroke-width="1.8"  marker-end="url(#arr)" />
+<circle cx="172" cy="222" r="11" fill="#16191f"/>
+<text x="172" y="226" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle" >1</text>
+<path d="M165,300 L205,300" fill="none" stroke="#16191f" stroke-width="1.8"  marker-end="url(#arr)" />
+<circle cx="185" cy="322" r="11" fill="#16191f"/>
+<text x="185" y="326" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle" >2</text>
+<path d="M302,350 L302,420" fill="none" stroke="#16191f" stroke-width="1.8"  marker-end="url(#arr)" />
+<text x="310" y="392" font-size="11" font-weight="500" fill="#5f6b7a" text-anchor="start" font-style="italic">web app</text>
+<path d="M400,300 L480,300" fill="none" stroke="#16191f" stroke-width="1.8"  marker-end="url(#arr)" />
+<circle cx="440" cy="282" r="11" fill="#16191f"/>
+<text x="440" y="286" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle" >3</text>
+<path d="M645,300 L695,297" fill="none" stroke="#16191f" stroke-width="1.8"  marker-end="url(#arr)" />
+<path d="M905,262 L1150,250" fill="none" stroke="#16191f" stroke-width="1.8"  marker-end="url(#arr)" />
+<circle cx="1000" cy="240" r="11" fill="#16191f"/>
+<text x="1000" y="244" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle" >4</text>
+<text x="1016" y="236" font-size="11.5" font-weight="600" fill="#16191f" text-anchor="start" >store prompt</text>
+<path d="M905,325 L1150,425" fill="none" stroke="#16191f" stroke-width="1.8"  marker-end="url(#arr)" />
+<circle cx="936" cy="388" r="11" fill="#16191f"/>
+<text x="936" y="392" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle" >6</text>
+<text x="952" y="392" font-size="11.5" font-weight="600" fill="#16191f" text-anchor="start" >send job</text>
+<path d="M1150,472 L905,522" fill="none" stroke="#16191f" stroke-width="1.8"  marker-end="url(#arr)" />
+<circle cx="1035" cy="515" r="11" fill="#16191f"/>
+<text x="1035" y="519" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle" >7</text>
+<text x="1051" y="519" font-size="11.5" font-weight="600" fill="#16191f" text-anchor="start" >long-poll</text>
+<path d="M905,470 L1170,300" fill="none" stroke="#16191f" stroke-width="1.8"  marker-end="url(#arr)" />
+<circle cx="1112" cy="345" r="11" fill="#16191f"/>
+<text x="1112" y="349" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle" >8</text>
+<text x="1126" y="349" font-size="11.5" font-weight="600" fill="#16191f" text-anchor="start" >get prompt</text>
+<path d="M722,360 L630,470" fill="none" stroke="#16191f" stroke-width="1.8"  marker-end="url(#arr)" marker-start="url(#arrS)"/>
+<circle cx="650" cy="398" r="11" fill="#16191f"/>
+<text x="650" y="402" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle" >5</text>
+<text x="636" y="402" font-size="11.5" font-weight="600" fill="#16191f" text-anchor="end" >job row</text>
+<circle cx="700" cy="432" r="11" fill="#16191f"/>
+<text x="700" y="436" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle" >10</text>
+<text x="716" y="436" font-size="11.5" font-weight="600" fill="#16191f" text-anchor="start" >read verdict</text>
+<path d="M695,545 L645,545" fill="none" stroke="#16191f" stroke-width="1.8"  marker-end="url(#arr)" />
+<circle cx="670" cy="567" r="11" fill="#16191f"/>
+<text x="670" y="571" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle" >9</text>
+<path d="M1345,447 L1385,447" fill="none" stroke="#E7157B" stroke-width="1.8"  marker-end="url(#arr)" />
+<text x="1365" y="438" font-size="11" font-weight="500" fill="#E7157B" text-anchor="middle" font-style="italic">3 fails</text>
+<path d="M1250,495 L1250,585" fill="none" stroke="#5f6b7a" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#arr)" />
+<text x="1258" y="545" font-size="11" font-weight="500" fill="#5f6b7a" text-anchor="start" font-style="italic">queue depth metric</text>
+<path d="M1150,625 L907,600" fill="none" stroke="#5f6b7a" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#arr)" />
+<text x="1000" y="640" font-size="11" font-weight="500" fill="#5f6b7a" text-anchor="start" font-style="italic">set worker count</text>
+<path d="M1467,200 L1467,172 L850,172 L850,190" fill="none" stroke="#5f6b7a" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#arr)" />
+<text x="1150" y="165" font-size="11" font-weight="500" fill="#5f6b7a" text-anchor="start" font-style="italic">DB credentials injected at task start</text>
+<path d="M560,725 L700,645" fill="none" stroke="#5f6b7a" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#arr)" />
+<text x="590" y="712" font-size="11" font-weight="500" fill="#5f6b7a" text-anchor="start" font-style="italic">pull images</text>
+<path d="M790,645 L790,725" fill="none" stroke="#5f6b7a" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#arr)" />
+<text x="797" y="700" font-size="11" font-weight="500" fill="#5f6b7a" text-anchor="start" font-style="italic">logs + metrics</text>
+<path d="M835,768 L850,768" fill="none" stroke="#5f6b7a" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#arr)" />
+<text x="25" y="588" font-size="14" font-weight="800" fill="#16191f" text-anchor="start" >Request flow</text>
+<circle cx="33" cy="604" r="7.5" fill="#16191f"/>
+<text x="33" y="607.5" font-size="9.5" font-weight="700" fill="#ffffff" text-anchor="middle" >1</text>
+<text x="47" y="608" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >Sign in with Cognito → JWT</text>
+<circle cx="33" cy="621" r="7.5" fill="#16191f"/>
+<text x="33" y="624.5" font-size="9.5" font-weight="700" fill="#ffffff" text-anchor="middle" >2</text>
+<text x="47" y="625" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >Open the web app over HTTPS</text>
+<circle cx="33" cy="638" r="7.5" fill="#16191f"/>
+<text x="33" y="641.5" font-size="9.5" font-weight="700" fill="#ffffff" text-anchor="middle" >3</text>
+<text x="47" y="642" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >POST /scan via CloudFront → ALB → API</text>
+<circle cx="33" cy="655" r="7.5" fill="#16191f"/>
+<text x="33" y="658.5" font-size="9.5" font-weight="700" fill="#ffffff" text-anchor="middle" >4</text>
+<text x="47" y="659" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >API stores the prompt in S3</text>
+<circle cx="33" cy="672" r="7.5" fill="#16191f"/>
+<text x="33" y="675.5" font-size="9.5" font-weight="700" fill="#ffffff" text-anchor="middle" >5</text>
+<text x="47" y="676" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >API inserts the job row (queued)</text>
+<circle cx="33" cy="689" r="7.5" fill="#16191f"/>
+<text x="33" y="692.5" font-size="9.5" font-weight="700" fill="#ffffff" text-anchor="middle" >6</text>
+<text x="47" y="693" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >API sends {job_id, s3_key} to SQS, returns 202</text>
+<circle cx="33" cy="706" r="7.5" fill="#16191f"/>
+<text x="33" y="709.5" font-size="9.5" font-weight="700" fill="#ffffff" text-anchor="middle" >7</text>
+<text x="47" y="710" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >Worker long-polls the queue</text>
+<circle cx="33" cy="723" r="7.5" fill="#16191f"/>
+<text x="33" y="726.5" font-size="9.5" font-weight="700" fill="#ffffff" text-anchor="middle" >8</text>
+<text x="47" y="727" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >Worker fetches the prompt and scans it</text>
+<circle cx="33" cy="740" r="7.5" fill="#16191f"/>
+<text x="33" y="743.5" font-size="9.5" font-weight="700" fill="#ffffff" text-anchor="middle" >9</text>
+<text x="47" y="744" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >Verdict saved in RDS, message deleted</text>
+<circle cx="33" cy="757" r="7.5" fill="#16191f"/>
+<text x="33" y="760.5" font-size="9.5" font-weight="700" fill="#ffffff" text-anchor="middle" >10</text>
+<text x="47" y="761" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >Browser polls GET /result/{id}</text>
+<path d="M440,872 L480,872" stroke="#16191f" stroke-width="1.8" marker-end="url(#arr)"/>
+<text x="488" y="876" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >request / data flow</text>
+<path d="M620,872 L660,872" stroke="#5f6b7a" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#arr)"/>
+<text x="668" y="876" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >control, scaling &amp; operations</text>
+<text x="870" y="876" font-size="11.5" font-weight="normal" fill="#3b4250" text-anchor="start" >F1–F6 / N1–N6 = design-doc requirements met by that service</text>
+</svg>
