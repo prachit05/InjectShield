@@ -96,6 +96,17 @@ Resources:
               - !Sub "${FrontendBucket.Arn}/*"
             Condition:
               Bool: { "aws:SecureTransport": "false" }
+          # The bucket stays private; only CloudFront distributions in this account
+          # (frontend.yaml, via origin access control) may read it. Matching any
+          # distribution here avoids a circular import between the two stacks.
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal: { Service: cloudfront.amazonaws.com }
+            Action: s3:GetObject
+            Resource: !Sub "${FrontendBucket.Arn}/*"
+            Condition:
+              StringEquals: { "aws:SourceAccount": !Ref AWS::AccountId }
+              ArnLike: { "aws:SourceArn": !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*" }
 
 Outputs:
   PromptsBucketName:

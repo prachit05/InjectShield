@@ -1,5 +1,6 @@
-# Local stack: api + worker against Postgres and LocalStack (S3 + SQS). No AWS account needed.
-#   docker compose up --build
+# Local stack: api + worker against Postgres and LocalStack (S3 + SQS), plus the web app.
+# No AWS account needed.
+#   docker compose up --build                       # web app: http://localhost:8080, API: http://localhost:8000/docs
 #   docker compose up --build --scale worker=3     # several workers on one queue
 
 x-app-env: &app-env
@@ -57,3 +58,11 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       localstack: { condition: service_healthy }
+
+  # Static web app; frontend/config.js points it at the API above with auth disabled.
+  frontend:
+    image: nginx:1.27-alpine
+    ports: ["8080:80"]
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on: [api]

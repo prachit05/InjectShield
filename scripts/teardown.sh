@@ -10,7 +10,7 @@ set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
 # Reverse of the deploy order, including later phases' stacks.
-STACKS=(monitoring autoscaling compute auth iam database queue storage network)
+STACKS=(frontend monitoring autoscaling compute auth registry iam database queue storage network)
 
 show_identity
 existing=()
@@ -59,6 +59,14 @@ for s in "${existing[@]}"; do
   fi
   delete_stack "$s"
 done
+
+# Container Insights creates this log group itself, outside CloudFormation.
+insights="/aws/ecs/containerinsights/$PROJECT/performance"
+if [[ -n "$(aws_ logs describe-log-groups --log-group-name-prefix "$insights" --query 'logGroups[0].logGroupName' --output text 2>/dev/null | grep -v None)" ]]; then
+  echo
+  echo "==> deleting log group $insights"
+  aws_ logs delete-log-group --log-group-name "$insights"
+fi
 
 left=$(aws_ cloudformation list-stacks \
   --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE ROLLBACK_COMPLETE DELETE_FAILED \

@@ -51,6 +51,8 @@ jobs:
       - run: cfn-lint --regions us-east-1 us-west-2 ap-south-1 --include-checks I -- infra/*.yaml
       - name: Shell scripts parse
         run: for f in scripts/*.sh scripts/localstack/*.sh; do bash -n "$f"; done
+      - name: Frontend modules parse
+        run: for f in frontend/src/*.js; do cp "$f" "$RUNNER_TEMP/check.mjs" && node --check "$RUNNER_TEMP/check.mjs"; done
 
   docker:
     runs-on: ubuntu-latest
