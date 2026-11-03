@@ -1,8 +1,7 @@
 # InjectShield design
 
-Export of the design doc (19 October 2026), updated to match what was built. The
-original is the "InjectShield Design Doc" on claude.ai; the decisions taken since are
-listed under [Changes from the original plan](#changes-from-the-original-plan).
+The design doc (19 October 2026), updated to match what was built. The decisions
+taken since are listed under [Changes from the original plan](#changes-from-the-original-plan).
 
 ## Overview
 

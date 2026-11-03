@@ -1,7 +1,6 @@
 # InjectShield handoff
 
-Status as of 22 October 2026. Everything below is on the `phases-4-6` branch of
-`prachit05/InjectShield` (not merged into `main` yet).
+Status as of 22 October 2026, from `prachit05/InjectShield` (`main`).
 
 ## What InjectShield is
 
@@ -69,8 +68,7 @@ the scan itself stayed near 0 ms; that wait is the backlog the autoscaling then 
    code), the web app, and the CloudWatch dashboard in the console.
 2. **Teardown (N5):** run `scripts/teardown.sh` and confirm nothing is left. This takes
    the live site down; `deploy.sh` brings it back in about 15 minutes with a new URL.
-3. **Merge** the `phases-4-6` pull request into `main`.
-4. **Viva prep:** `docs/services-used.md` maps each requirement to its code.
+3. **Viva prep:** `docs/services-used.md` maps each requirement to its code.
 
 ## How to run it yourself
 
@@ -78,7 +76,6 @@ the scan itself stayed near 0 ms; that wait is the backlog the autoscaling then 
 
 ```bash
 git clone https://github.com/prachit05/InjectShield && cd InjectShield
-git switch phases-4-6
 docker compose up --build -d     # then open http://localhost:8080 (login is off locally)
 scripts/smoke.sh                 # one prompt end to end
 docker compose down              # stop
@@ -89,7 +86,3 @@ his machine or with access he grants. To deploy a separate copy in your own acco
 follow `docs/deployment.md`: sign the CLI in with `aws login`, then run `deploy.sh` with
 your account's region. Running costs about $0.10 an hour; run `teardown.sh` after every
 session.
-
-**With Claude Code:** open the repo folder in Claude Code. It reads `CLAUDE.md`
-automatically, which has the commands and the problems already solved. Ask it, for
-example, "run the project locally" or "deploy to my AWS account".
